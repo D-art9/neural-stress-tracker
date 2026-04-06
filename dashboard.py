@@ -17,7 +17,12 @@ st.set_page_config(page_title="AI Stress Detection (Cloud Ready)", layout="wide"
 
 # RTC Configuration for STUN servers
 RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+    {
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]},
+            {"urls": ["stun:stun2.l.google.com:19302", "stun:stun3.l.google.com:19302"]},
+        ]
+    }
 )
 
 class StressVideoProcessor(VideoProcessorBase):
@@ -25,7 +30,7 @@ class StressVideoProcessor(VideoProcessorBase):
     Processes incoming WebRTC video frames using the StressDetectorController.
     """
     def __init__(self) -> None:
-        self.detector = StressDetectorController(calibration_frames=150)
+        self.detector = None
         self.lock = threading.Lock()
         self.latest_data = {
             'score': 0.0,
@@ -37,17 +42,26 @@ class StressVideoProcessor(VideoProcessorBase):
     def recv(self, frame: av.VideoFrame) -> av.VideoFrame:
         img = frame.to_ndarray(format="bgr24")
         
-        # Process the frame
-        processed_img, _ = self.detector.process_external_frame(img)
-        
-        # Share data with UI thread
-        with self.lock:
-            self.latest_data['score'] = self.detector.current_score
-            self.latest_data['status'] = self.detector.status
-            self.latest_data['z_scores'] = self.detector.z_scores
-            self.latest_data['history'] = list(self.detector.history)
+        # Lazy load the detector to avoid WebRTC connection timeouts
+        try:
+            if self.detector is None:
+                with self.lock:
+                    self.detector = StressDetectorController(calibration_frames=150)
             
-        return av.VideoFrame.from_ndarray(processed_img, format="bgr24")
+            # Process the frame
+            processed_img, _ = self.detector.process_external_frame(img)
+            
+            # Share data with UI thread
+            with self.lock:
+                self.latest_data['score'] = self.detector.current_score
+                self.latest_data['status'] = self.detector.status
+                self.latest_data['z_scores'] = self.detector.z_scores
+                self.latest_data['history'] = list(self.detector.history)
+                
+            return av.VideoFrame.from_ndarray(processed_img, format="bgr24")
+        except Exception as e:
+            # Fallback for errors during processing
+            return av.VideoFrame.from_ndarray(img, format="bgr24")
 
 # Initialize Session State
 if "processor" not in st.session_state:
@@ -86,16 +100,20 @@ timeline_placeholder = st.empty()
 # UI Update Loop
 if ctx.video_processor:
     while ctx.state.playing:
+        if ctx.video_processor is None:
+            break
+            
         with ctx.video_processor.lock:
             data = ctx.video_processor.latest_data.copy()
         
-        if not data:
+        # Skip if initialization isn't done or data is empty
+        if not data or 'status' not in data:
             time.sleep(0.1)
             continue
-
+            
         # Update Gauge
-        score = data['score']
-        status = data['status']
+        score = data.get('score', 0.0)
+        status = data.get('status', 'INITIALIZING')
         color_map = {"HIGH": "#FF0000", "MODERATE": "#FFCC00", "LOW": "#00CC00", "CALIBRATING": "#99DDFF"}
         gauge_color = color_map.get(status, "#CCCCCC")
         
@@ -118,7 +136,7 @@ if ctx.video_processor:
         status_placeholder.markdown(f"<h3 style='text-align: center; color: {gauge_color};'>Level: {status}</h3>", unsafe_allow_html=True)
 
         # Update Bar Chart
-        z_data = data['z_scores']
+        z_data = data.get('z_scores', {})
         if z_data:
             pretty_names = {"blink": "Blink Rate", "brow": "Brow Tension", "lip": "Lip Tightness", "asymmetry": "Asymmetry"}
             df_z = pd.DataFrame({
@@ -131,12 +149,12 @@ if ctx.video_processor:
             bar_chart_placeholder.plotly_chart(fig_bar, use_container_width=True)
 
         # Update Timeline
-        history = data['history']
+        history = data.get('history', [])
         if len(history) > 1:
             fig_line = px.line(x=np.arange(len(history)), y=history)
             fig_line.update_layout(yaxis_range=[0, 105], height=300, xaxis_title="Time", yaxis_title="Stress Index")
             timeline_placeholder.plotly_chart(fig_line, use_container_width=True)
 
-        time.sleep(0.5) # Throttle UI updates to 2 FPS for stability
+        time.sleep(0.5) # Throttle UI updates for stability
 else:
     st.info("Please allow camera access and press 'Start' to begin analysis.")
