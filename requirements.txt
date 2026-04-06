@@ -1,6 +1,7 @@
-opencv-python-headless
-mediapipe
-numpy
+# Primary Cloud Dependencies
+opencv-python-headless==4.8.0.74
+mediapipe==0.10.11
+numpy<2.0.0
 streamlit
 plotly
 pandas
