@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+
+# Streamlit
+.streamlit/
+
+# OS specific
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+
+# Project specific
+# face_landmarker.task (at 3MB, it's fine for GH, but typically should be excluded or LFS)
