@@ -82,7 +82,7 @@ with col_feed:
         rtc_configuration=RTC_CONFIGURATION,
         video_processor_factory=StressVideoProcessor,
         media_stream_constraints={"video": True, "audio": False},
-        async_processing=True,
+        async_processing=False,
     )
 
 with col_score:
