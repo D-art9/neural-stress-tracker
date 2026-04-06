@@ -1,5 +1,5 @@
-libgl1-mesa-glx
 libgl1
+libegl1
 libgles2
 libsm6
 libxext6
