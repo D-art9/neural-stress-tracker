@@ -138,7 +138,14 @@ if ctx.video_processor:
         # Update Bar Chart
         z_data = data.get('z_scores', {})
         if z_data:
-            pretty_names = {"blink": "Blink Rate", "brow": "Brow Tension", "lip": "Lip Tightness", "asymmetry": "Asymmetry"}
+            pretty_names = {
+                "blink": "Blink Rate", 
+                "brow": "Brow Tension", 
+                "lip": "Lip Tightness", 
+                "asymmetry": "Asymmetry",
+                "jitter": "Micro-Jitter",
+                "posture": "Head Tilt"
+            }
             df_z = pd.DataFrame({
                 'Signal': [pretty_names.get(k, k) for k in z_data.keys()],
                 'Deviation (Z)': list(z_data.values())
